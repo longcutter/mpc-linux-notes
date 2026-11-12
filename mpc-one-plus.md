@@ -14,7 +14,8 @@ Each fact carries a tag:
 | --- | --- |
 | **[measured]** | Seen or measured on the tested One+ (2.14) |
 | **[source]** | Read in inMusic's open-source release (kernel, device tree, drivers); not necessarily checked on the device |
-| **[unverified]** | Expected or reported elsewhere, not yet confirmed |
+| **[reported]** | Published by someone else (linked in [Credits](#credits-and-related-work)), usually for another MPC model or firmware; not yet confirmed on the One+ |
+| **[unverified]** | Expected, not yet confirmed |
 
 Unit-to-unit differences are possible, especially in anything analog (levels, knob positions).
 
@@ -39,7 +40,7 @@ The MPC One+ is a small Linux computer with a music controller built in. Everyth
 
 **The MPC app.** systemd starts it at boot as `inmusic-mpc.service` (which runs `/usr/bin/az01-launch-MPC`) and restarts it if it exits. It owns the screen, the touchscreen, the audio codec and the controller while it runs. Thread names such as "JUCE Message Th" suggest it is built with the JUCE framework. [measured] A few helper services run beside it (see [Services](#services)).
 
-**The controller is a separate board on internal USB.** Pads, Q-Links, the main encoder, the buttons and their LEDs are not wired to the processor directly. They sit on a controller board that the Linux side sees as a USB MIDI device ("MPC One +", USB ID `09e8:0056`) with three raw MIDI ports. The app reads pads and knobs as MIDI notes and CCs and lights the LEDs by sending MIDI back. The DIN MIDI jacks are the third port of the same device. [measured] The CV/Gate outputs are very likely driven through this board too, since the main board has no DAC for them. [source]
+**The controller is a separate board on internal USB.** Pads, Q-Links, the main encoder, the buttons and their LEDs are not wired to the processor directly. They sit on a controller board that the Linux side sees as a USB MIDI device ("MPC One +", USB ID `09e8:0056`) with three raw MIDI ports. The app reads pads and knobs as MIDI notes and CCs and lights the LEDs by sending MIDI back. The DIN MIDI jacks are the third port of the same device. [measured] The CV/Gate outputs are very likely driven through this board too, since the main board has no DAC for them. [source] On the MPC Live that board is an STM32F401 microcontroller whose firmware ships with the system and is flashed over USB DFU; the One+'s is probably similar. [reported]
 
 **Audio is one stereo codec with analog knobs.** The audio inputs and outputs are a plain I2S codec (ALSA card "ACVA"): one stereo playback stream and one stereo capture stream, 44.1 kHz only, and no software mixer controls at all. The MAIN VOLUME and input gain knobs are analog, and the headphone jack carries the same signal as the main outs. [measured, source]
 
@@ -47,7 +48,7 @@ The MPC One+ is a small Linux computer with a music controller built in. Everyth
 
 **Storage is split three ways.** The system partition is read-only and full. User data, settings overlays and the factory sound content live on an internal ext4 partition (`/media/az01-internal`). The SD card is exFAT at `/media/MPC SDC`. [measured]
 
-**Firmware 2.x and 3.x are different operating systems.** MPC 3.10's open-source release shows a Yocto build with Linux 6.18, glibc 2.39 and systemd 255, against 2.14's Buildroot / Linux 5.15 RT / glibc 2.32. [source] Anything that depends on the system (the SSH image, binaries, paths) should be rechecked after an update.
+**Firmware 2.x and 3.x are different operating systems.** MPC 3.10's open-source release shows a Yocto build with Linux 6.18, glibc 2.39 and systemd 255, against 2.14's Buildroot / Linux 5.15 RT / glibc 2.32. [source] Anything that depends on the system (the SSH image, binaries, paths) should be rechecked after an update. On 3.x the app's service is `acvs.service` and external drives are mounted `noexec`. [reported]
 
 **What inMusic publishes.** inMusic releases the GPL/LGPL parts of the firmware (kernel, device trees, drivers, system libraries) at [github.com/inmusic-software/az0x-open-source](https://github.com/inmusic-software/az0x-open-source) (branch `mpc-g1/3.10` for this generation; the tarballs are Git LFS objects). The MPC app, the controller board's firmware and its pad/LED/CV protocol are not included. [source]
 
@@ -71,6 +72,7 @@ All of Parts 2-3 assume SSH access. These notes were made with **TheKikGen's SSH
 | C library (2.14) | glibc 2.32 | [measured] |
 | Userland | busybox; no gcc, python or ldd; no `pkill` | [measured] |
 | Kernel config | `/proc/config.gz` is present: `zcat /proc/config.gz \| grep ...` answers kernel-option questions | [measured] |
+| Product code | `ACVA2` (the One+; the original One is `ACVA`). Programs can read it from `/sys/firmware/devicetree/base/inmusic,product-code`; the `compatible` string is `inmusic,acva2` | [source, reported] |
 | Device tree (One+) | `rk3288-az05-acva2.dts` ("inmusic,acva2", base `rk3288-az05.dtsi`); the original MPC One is `rk3288-az01-acva.dts` | [source] |
 | Other inMusic drivers | `az01-power` (power supply), `az01-fan` (hwmon) | [source] |
 | Network | Reaches the internet when connected (apt worked from a chroot) | [measured] |
@@ -94,6 +96,8 @@ The internal drive is the place for your own files: use a subfolder of your own 
 | `az01-script-runner` | Akai's autorun mechanism | [measured] |
 | `DeviceControlServer.bin` | Creates the virtual MIDI ports | [measured] |
 | `crashpad_handler` | Uploads MPC app crash reports (Sentry) | [measured] |
+| Telemetry in the MPC app | Usage analytics (PostHog) besides Sentry crash reports; the "Collect Usage Statistics" preference does not cover crash reporting (analysis of firmware 3.9.1) | [reported] |
+| MPC app memory limit | The app refuses commands with "Not enough memory to perform the command" once system RAM use reaches 80% (3.9.1). Anything else you run beside the app eats into that | [reported] |
 
 The MPC app also routes the DIN MIDI port through an ALSA sequencer client (client 16) on its side. [measured]
 
@@ -148,7 +152,9 @@ ALSA card 0, USB-Audio "MPC One +" (USB `09e8:0056`), on an internal USB host co
 | `hw:0,0,1` (`/dev/snd/midiC0D0`, subdevice 1) | MPC Studio Live **Private** | **All pads, knobs and buttons arrive here; LEDs are written here** |
 | `hw:0,0,2` (`/dev/snd/midiC0D0`, subdevice 2) | MPC Studio Live MIDI Port | The DIN MIDI jacks |
 
-The port names say "MPC Studio Live" on the One+. [measured]
+The port names say "MPC Studio Live" on the One+, the same as the original MPC One; the Live, Live II, X and Key 61 use "MPC Public" / "MPC Private" / "MPC MIDI Port A-D". [measured, reported] The Public port carries SysEx in both directions (pad colours, identity); buttons, pads and button LEDs use Private. [reported]
+
+**Identity and product ID.** The controller answers a universal identity request (`F0 7E 00 06 01 F7`) with Akai's ID 0x47, a product ID and its serial number. Product IDs used in Akai's SysEx: 0x3A MPC X, 0x3B Live, 0x40 Force, 0x46 One, 0x47 Live II, 0x4B Key 61, 0x52 XL, **0x56 One+ (ACVA2)**. [reported]
 
 **Pads: channel 10.** Note on `0x99` with velocity, note off `0x89`, pressure as poly aftertouch `0xA9` on the same note. Bank A layout (pad 1 = bottom left): [measured]
 
@@ -162,6 +168,8 @@ The port names say "MPC Studio Live" on the One+. [measured]
 | 6 | 38 (0x26) | | 14 | 55 (0x37) |
 | 7 | 46 (0x2E) | | 15 | 51 (0x33) |
 | 8 | 44 (0x2C) | | 16 | 53 (0x35) |
+
+The same numbering is in TheKikGen's code for the MPC Live, so it is shared across models. [measured, reported]
 
 The bank buttons A-D are ordinary buttons (below). Whether the pads send other notes on banks B-D, or the app does the bank switching itself, hasn't been checked. [unverified]
 
@@ -211,9 +219,10 @@ LEDs are lit by sending MIDI **back to the Private port** (open `/dev/snd/midiC0
 | --- | --- | --- |
 | Q-Link mode LEDs 1-4 (above the Q-LINK button) | CC 90, 91, 92, 93 on channel 1 | [measured] |
 | Button LEDs | CC on channel 1 whose number **equals the button's note number** (table above) | Confirmed for PLAY 82 (green), OVER DUB 80 (red), REC 73 (red), UNDO 67, TAP TEMPO 53; others expected to follow the same rule [unverified] |
-| Pad RGB LEDs | Not mapped; not CC or note. Probably SysEx | [unverified] |
+| Button LED values | 0 = off, 1 = dim, 3 = bright; the MPC app also sends 2 to some buttons (meaning not documented). It blinks TAP TEMPO by alternating 1 and 3. 127 lights them on the One+ | [reported; 0 and 127 measured] |
+| Pad RGB LEDs | SysEx **on the Public port** (`hw:0,0,0`): `F0 47 7F <product ID> 65 00 04 <pad> <R> <G> <B> F7`, R/G/B 0-127. On the One+: `F0 47 7F 56 65 00 04 ...`. Pad 0 = pad 1 (bottom left), counting left to right then up: pad index = MPC pad number - 1 | [reported] |
 
-Values between 0 and 127 (brightness, second colour) have not been tried yet.
+Untested on the One+ so far: the pad SysEx and the 1/2/3 values.
 
 ### Display
 
@@ -247,7 +256,7 @@ Touch to landscape screen: scale raw values to panel pixels (x * 800 / 2048, y *
 | configfs | Mounted at `/sys/kernel/config`; `usb_gadget` is empty | [measured] |
 | Standalone mode | **The MPC app builds no gadget.** With the app running and the port cabled to a Mac, the UDC stayed "not attached" and the Mac saw nothing. A program of your own can create its own gadget through configfs without tearing anything down | [measured] |
 | Controller mode | Builds a UAC2 gadget (reported by MPC-LiveXplore users; not checked here) | [unverified] |
-| Clock steering | Linux 6.18's `u_audio` has "Playback/Capture Pitch" controls; whether 2.14's 5.15 kernel has them is not yet checked | [source] |
+| Clock steering | Mainline Linux 5.15 (including 5.15.118) has only the **"Capture Pitch 1000000"** control (it steers the computer -> MPC direction through the feedback endpoint); **"Playback Pitch" arrived in 5.16**. So on 2.14, MPC -> computer audio can't be steered by the gadget and needs resampling on the MPC, unless inMusic backported it (not checked). 6.18 (3.10) has both | [source] |
 
 inMusic's `f_uac2_az01.c` (in the 3.10 source) can lock the USB audio stream to the codec's period timing via `sound/core/pcm_sync_stream.c`; it's GPL kernel code, worth reading for ideas. [source]
 
@@ -299,6 +308,7 @@ Three cores are essentially idle while a single-threaded audio program runs.
 - **busybox, not a full userland:** there's no `pkill` (use `kill $(pidof <name>)`), no compiler, no python, no `ldd`. Check a tool exists before a script relies on it
 - **A crash can look like a freeze.** If your program segfaults while drawing, the last frame stays on screen and the controls stop answering; the terminal may not print anything. Debug crashes on a host (QEMU user mode + gdb works well) rather than on the device
 - **Copying files from a Mac:** `tar` and `cp` leave `._name` AppleDouble files on exFAT; set `COPYFILE_DISABLE=1` before `tar`. Convert audio to 16-bit 44.1 kHz WAV first (`afconvert -f WAVE -d LEI16@44100 in.aif out.wav`). Check the file size after copying: a mistyped source path makes an empty file
+- **Don't send the controller unknown SysEx.** One command (0x72) puts the controller board into DFU firmware-update mode (reported for the Live); stick to the documented messages
 - **Firmware updates:** 3.x is a different OS from 2.x. Don't update a modded unit until the mod you rely on is known to work on the new version
 
 ### Building programs for it
@@ -343,14 +353,24 @@ Three cores are essentially idle while a single-threaded audio program runs.
 
 Help welcome on any of these, from One+ owners or other models.
 
-- Pad RGB LED messages (probably SysEx on the Private port)
-- LED values other than 0 and 127: brightness steps, second colours on two-colour buttons
+- Confirm the pad colour SysEx with product ID 0x56 on the One+, and what button LED value 2 does (second colour on two-colour buttons?)
+- The identity reply's product ID on the One+ (expected 0x56)
 - CV/Gate: transport and message format, voltage range, resolution, whether outputs hold when the app exits
-- Does the 2.14 kernel's UAC2 gadget have the "Playback/Capture Pitch" controls; link speed once bound; how macOS and Windows enumerate a gadget
+- Whether inMusic's 5.15 kernel backported "Playback Pitch" (mainline 5.15 has only "Capture Pitch"); link speed once bound; how macOS and Windows enumerate a gadget
 - Input level: are the inputs usable for guitar at instrument level, or line only
 - Polyphonic aftertouch resolution and the pads' velocity curve
 - The same tables for MPC One, Live, Live II, X, Key 61 and other first-generation units: which note numbers and devices differ
 
+## Credits and related work
+
+- **TheKikGen**, [MPC-LiveXplore](https://github.com/TheKikGen/MPC-LiveXplore) and its [wiki](https://github.com/TheKikGen/MPC-LiveXplore/wiki): the SSH image these notes depend on; the controller's port layout, identity request, pad colour SysEx and DFU mode ([MPC internal controller, MIDI aspects](https://github.com/TheKikGen/MPC-LiveXplore/wiki/MPC-internal-controller---Midi-aspects), which credits Lenore Byron for decoding SysEx commands); [inMusic device IDs](https://github.com/TheKikGen/MPC-LiveXplore/wiki/Akai--InMusic-device-Ids); [MPC 3 first analysis](https://github.com/TheKikGen/MPC-LiveXplore/wiki/MPC-3-first-analysis); the firmware 3.9.1 privacy and memory-limit analyses on the same wiki
+- **TheKikGen**, [MPCLiveXplore-libs](https://github.com/TheKikGen/MPCLiveXplore-libs) (CC0): the product code and SysEx ID table including the One+ (ACVA2, 0x56), the pad colour message and pad numbering, button LED values
+- **bcrowe306**, [MPC-One-Control-Mode-MIDI-Protocol](https://github.com/bcrowe306/MPC-One-Control-Mode-MIDI-Protocol): the MIDI map the MPC One uses in *controller mode* toward a computer, which is different from the internal map above
+- **inMusic**, [az0x-open-source](https://github.com/inmusic-software/az0x-open-source): kernel, device trees and drivers
+- **Linux kernel** source ([torvalds/linux](https://github.com/torvalds/linux), [gregkh/linux](https://github.com/gregkh/linux) for 5.15.118): which versions have the UAC2 Pitch controls
+
 ## Changelog
+
+- **2026-11-12 (later):** Added findings from other projects, tagged [reported] and credited: pad colour SysEx and the One+'s product ID, button LED values, identity request, per-model port names, controller MCU and DFU warning, MPC app memory limit and telemetry, 3.x service and mount changes. UAC2 Pitch controls answered from kernel source. New Credits section
 
 - **2026-11-12:** First version, from testing done while building [MPDJ](https://github.com/longcutter/mpdj) (2026-11-05 to 2026-11-12)

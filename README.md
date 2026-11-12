@@ -13,7 +13,7 @@ So far everything was measured on an **MPC One+ on firmware 2.14**, or read in i
 
 ## Status tags
 
-Every fact is tagged **[measured]** (seen on a real unit), **[source]** (read in inMusic's kernel source or device tree) or **[unverified]** (expected, reported elsewhere, or not yet checked).
+Every fact is tagged **[measured]** (seen on a real unit), **[source]** (read in inMusic's or the Linux kernel's source), **[reported]** (published by another project, credited in the notes, not yet confirmed on the One+) or **[unverified]** (expected, not yet checked).
 
 ## Contributing
 
@@ -27,7 +27,7 @@ A model with enough differences gets its own file next to `mpc-one-plus.md`.
 
 ## Where this came from
 
-The testing was done while building [MPDJ](https://github.com/longcutter/mpdj), a tracker that runs natively on the MPC One+ in place of the MPC app. MPDJ's [stand-alone probes](https://github.com/longcutter/mpdj/tree/mpc-port/platforms/mpc/source) (audio round trip, ALSA controls, LED mapper) are the tools behind several of the numbers here. Shell access came from TheKikGen's [MPC-LiveXplore](https://github.com/TheKikGen/MPC-LiveXplore) project; kernel and driver details from inMusic's [open-source release](https://github.com/inmusic-software/az0x-open-source).
+The testing was done while building [MPDJ](https://github.com/longcutter/mpdj), a tracker that runs natively on the MPC One+ in place of the MPC app. MPDJ's [stand-alone probes](https://github.com/longcutter/mpdj/tree/mpc-port/platforms/mpc/source) (audio round trip, ALSA controls, LED mapper) are the tools behind several of the numbers here. Shell access came from TheKikGen's [MPC-LiveXplore](https://github.com/TheKikGen/MPC-LiveXplore) project, whose wiki and libraries also supplied several [reported] facts; kernel and driver details from inMusic's [open-source release](https://github.com/inmusic-software/az0x-open-source). Full credits are at the end of [the notes](mpc-one-plus.md#credits-and-related-work).
 
 ## Disclaimer
 

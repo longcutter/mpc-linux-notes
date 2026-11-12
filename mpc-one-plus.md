@@ -371,7 +371,7 @@ Help welcome on any of these, from One+ owners or other models.
 
 ## Changelog
 
-- **2026-11-12 (afternoon):** Confirmed on the One+: pad colour SysEx with product ID 0x56 on the Public port, the identity reply on the Public port, button LED values for one-colour and two-colour buttons (value 2 = dim red on two-colour buttons), and the button-note rule for 14 buttons
+- **2026-11-12 (LED check):** Confirmed on the One+: pad colour SysEx with product ID 0x56 on the Public port, the identity reply on the Public port, button LED values for one-colour and two-colour buttons (value 2 = dim red on two-colour buttons), and the button-note rule for 14 buttons
 - **2026-11-12 (later):** Added findings from other projects, tagged [reported] and credited: pad colour SysEx and the One+'s product ID, button LED values, identity request, per-model port names, controller MCU and DFU warning, MPC app memory limit and telemetry, 3.x service and mount changes. UAC2 Pitch controls answered from kernel source. New Credits section
 
 - **2026-11-12:** First version, from testing done while building [MPDJ](https://github.com/longcutter/mpdj) (2026-11-05 to 2026-11-12)

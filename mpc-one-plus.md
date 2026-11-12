@@ -218,9 +218,10 @@ LEDs are lit by sending MIDI **back to the Private port** (open `/dev/snd/midiC0
 | LEDs | Message | |
 | --- | --- | --- |
 | Q-Link mode LEDs 1-4 (above the Q-LINK button) | CC 90, 91, 92, 93 on channel 1 | [measured] |
-| Button LEDs | CC on channel 1 whose number **equals the button's note number** (table above) | Confirmed for PROGRAM EDIT 2, SAMPLE EDIT 6, ERASE 9, NOTE REPEAT 11, TC 12, BANK A-D 35-38, FULL LEVEL 39, 16 LEVELS 40, STEP SEQ 41, TAP TEMPO 53, UNDO 67, REC 73, OVER DUB 80, PLAY 82 [measured]. |
+| Button LEDs | CC on channel 1 whose number **equals the button's note number** (table above) | Confirmed for PROGRAM EDIT 2, SAMPLE EDIT 6, ERASE 9, NOTE REPEAT 11, TC 12, BANK A-D 35-38, FULL LEVEL 39, 16 LEVELS 40, STEP SEQ 41, NEXT SEQ 42, TRACK MUTE 43, SHIFT 49, BROWSE 50, MAIN 52, TAP TEMPO 53, UNDO 67, REC 73, OVER DUB 80, PLAY 82, TRACK MIX 116, COPY 122, MENU 123, SAMPLER 125 [measured] |
 | Button LED values, one-colour buttons (PLAY green, REC red, OVER DUB red) | 0 = off, 1 = dim, 2-127 = bright (2 looks the same as 3 and 127) | [measured] |
-| Button LED values, two-colour buttons (ERASE, SAMPLE EDIT, PROGRAM EDIT, NOTE REPEAT, TC, BANK A-D, FULL LEVEL, 16 LEVELS, STEP SEQ) | 0 = off, 1 = dim white, 2 = dim red, 3 = bright white, 4 = bright red, 5-127 = medium white | [measured] |
+| Button LED values, two-colour buttons (ERASE, SAMPLE EDIT, PROGRAM EDIT, NOTE REPEAT, TC, BANK A-D, FULL LEVEL, 16 LEVELS, STEP SEQ, MAIN, BROWSE, MENU, SAMPLER, TRACK MUTE, TRACK MIX, NEXT SEQ, COPY, SHIFT) | 0 = off, 1 = dim white, 2 = dim red, 3 = bright white, 4 = bright red, 5-127 = medium white | [measured] |
+| LEDs left lit by the MPC app | Stopping the MPC app leaves its button lights as they were (e.g. MAIN, COPY, SAMPLER); a replacement program should write every button LED once at start | [measured] |
 | Buttons without a light | Q-LINK (the four mode LEDs above it are separate), STOP, PLAY START, + and - have solid caps and no LED. REC, OVER DUB and PLAY also have solid caps; their light is a separate indicator (the CCs above) | [measured] |
 | Pad RGB LEDs | SysEx **on the Public port** (`hw:0,0,0`): `F0 47 7F <product ID> 65 00 04 <pad> <R> <G> <B> F7`, R/G/B 0-127. On the One+: `F0 47 7F 56 65 00 04 ...`. Pad 0 = pad 1 (bottom left), counting left to right then up: pad index = MPC pad number - 1. Low values (single digits) still show in daylight | [measured] |
 
@@ -372,6 +373,7 @@ Help welcome on any of these, from One+ owners or other models.
 
 ## Changelog
 
+- **2026-11-12 (more buttons):** MAIN, BROWSE, MENU, SAMPLER, TRACK MUTE, TRACK MIX, NEXT SEQ, COPY and SHIFT confirmed as two-colour LEDs on their note numbers; the MPC app's lights stay on after it stops
 - **2026-11-12 (buttons):** Which buttons have no light (solid caps: Q-LINK, STOP, PLAY START, +, -; REC, OVER DUB and PLAY light through a separate indicator)
 - **2026-11-12 (LED check):** Confirmed on the One+: pad colour SysEx with product ID 0x56 on the Public port, the identity reply on the Public port, button LED values for one-colour and two-colour buttons (value 2 = dim red on two-colour buttons), and the button-note rule for 15 buttons (TC rechecked: CC 12)
 - **2026-11-12 (later):** Added findings from other projects, tagged [reported] and credited: pad colour SysEx and the One+'s product ID, button LED values, identity request, per-model port names, controller MCU and DFU warning, MPC app memory limit and telemetry, 3.x service and mount changes. UAC2 Pitch controls answered from kernel source. New Credits section

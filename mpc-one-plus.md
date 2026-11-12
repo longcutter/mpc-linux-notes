@@ -152,7 +152,7 @@ ALSA card 0, USB-Audio "MPC One +" (USB `09e8:0056`), on an internal USB host co
 | `hw:0,0,1` (`/dev/snd/midiC0D0`, subdevice 1) | MPC Studio Live **Private** | **All pads, knobs and buttons arrive here; LEDs are written here** |
 | `hw:0,0,2` (`/dev/snd/midiC0D0`, subdevice 2) | MPC Studio Live MIDI Port | The DIN MIDI jacks |
 
-The port names say "MPC Studio Live" on the One+, the same as the original MPC One; the Live, Live II, X and Key 61 use "MPC Public" / "MPC Private" / "MPC MIDI Port A-D". [measured, reported] The Public port carries SysEx in both directions (pad colours, identity); buttons, pads and button LEDs use Private. [reported]
+The port names say "MPC Studio Live" on the One+, the same as the original MPC One; the Live, Live II, X and Key 61 use "MPC Public" / "MPC Private" / "MPC MIDI Port A-D". [measured, reported] The Public port carries SysEx in both directions (pad colours, identity): pad colours sent there light the pads, and the identity request sent there gets a 35-byte reply on the same port [measured]; buttons, pads and button LEDs use Private. [measured]
 
 **Identity and product ID.** The controller answers a universal identity request (`F0 7E 00 06 01 F7`) with Akai's ID 0x47, a product ID and its serial number. Product IDs used in Akai's SysEx: 0x3A MPC X, 0x3B Live, 0x40 Force, 0x46 One, 0x47 Live II, 0x4B Key 61, 0x52 XL, **0x56 One+ (ACVA2)**. [reported]
 
@@ -218,11 +218,12 @@ LEDs are lit by sending MIDI **back to the Private port** (open `/dev/snd/midiC0
 | LEDs | Message | |
 | --- | --- | --- |
 | Q-Link mode LEDs 1-4 (above the Q-LINK button) | CC 90, 91, 92, 93 on channel 1 | [measured] |
-| Button LEDs | CC on channel 1 whose number **equals the button's note number** (table above) | Confirmed for PLAY 82 (green), OVER DUB 80 (red), REC 73 (red), UNDO 67, TAP TEMPO 53; others expected to follow the same rule [unverified] |
-| Button LED values | 0 = off, 1 = dim, 3 = bright; the MPC app also sends 2 to some buttons (meaning not documented). It blinks TAP TEMPO by alternating 1 and 3. 127 lights them on the One+ | [reported; 0 and 127 measured] |
-| Pad RGB LEDs | SysEx **on the Public port** (`hw:0,0,0`): `F0 47 7F <product ID> 65 00 04 <pad> <R> <G> <B> F7`, R/G/B 0-127. On the One+: `F0 47 7F 56 65 00 04 ...`. Pad 0 = pad 1 (bottom left), counting left to right then up: pad index = MPC pad number - 1 | [reported] |
+| Button LEDs | CC on channel 1 whose number **equals the button's note number** (table above) | Confirmed for PROGRAM EDIT 2, SAMPLE EDIT 6, ERASE 9, TC 10, NOTE REPEAT 11, BANK A-D 35-38, FULL LEVEL 39, 16 LEVELS 40, STEP SEQ 41, TAP TEMPO 53, UNDO 67, REC 73, OVER DUB 80, PLAY 82 [measured] |
+| Button LED values, one-colour buttons (PLAY green, REC red, OVER DUB red) | 0 = off, 1 = dim, 2-127 = bright (2 looks the same as 3 and 127) | [measured] |
+| Button LED values, two-colour buttons (ERASE, SAMPLE EDIT, PROGRAM EDIT, NOTE REPEAT, TC, BANK A-D, FULL LEVEL, 16 LEVELS, STEP SEQ) | 0 = off, 1 = dim white, 2 = dim red, 3 = bright white, 4 = bright red, 5-127 = medium white | [measured] |
+| Pad RGB LEDs | SysEx **on the Public port** (`hw:0,0,0`): `F0 47 7F <product ID> 65 00 04 <pad> <R> <G> <B> F7`, R/G/B 0-127. On the One+: `F0 47 7F 56 65 00 04 ...`. Pad 0 = pad 1 (bottom left), counting left to right then up: pad index = MPC pad number - 1. Low values (single digits) still show in daylight | [measured] |
 
-Untested on the One+ so far: the pad SysEx and the 1/2/3 values.
+The MPC app also blinks TAP TEMPO by alternating 1 and 3. [reported]
 
 ### Display
 
@@ -353,8 +354,7 @@ Three cores are essentially idle while a single-threaded audio program runs.
 
 Help welcome on any of these, from One+ owners or other models.
 
-- Confirm the pad colour SysEx with product ID 0x56 on the One+, and what button LED value 2 does (second colour on two-colour buttons?)
-- The identity reply's product ID on the One+ (expected 0x56)
+- The identity reply's product ID on the One+ (expected 0x56; the reply arrives, 35 bytes on the Public port, but its bytes are not yet recorded here)
 - CV/Gate: transport and message format, voltage range, resolution, whether outputs hold when the app exits
 - Whether inMusic's 5.15 kernel backported "Playback Pitch" (mainline 5.15 has only "Capture Pitch"); link speed once bound; how macOS and Windows enumerate a gadget
 - Input level: are the inputs usable for guitar at instrument level, or line only
@@ -371,6 +371,7 @@ Help welcome on any of these, from One+ owners or other models.
 
 ## Changelog
 
+- **2026-11-12 (afternoon):** Confirmed on the One+: pad colour SysEx with product ID 0x56 on the Public port, the identity reply on the Public port, button LED values for one-colour and two-colour buttons (value 2 = dim red on two-colour buttons), and the button-note rule for 14 buttons
 - **2026-11-12 (later):** Added findings from other projects, tagged [reported] and credited: pad colour SysEx and the One+'s product ID, button LED values, identity request, per-model port names, controller MCU and DFU warning, MPC app memory limit and telemetry, 3.x service and mount changes. UAC2 Pitch controls answered from kernel source. New Credits section
 
 - **2026-11-12:** First version, from testing done while building [MPDJ](https://github.com/longcutter/mpdj) (2026-11-05 to 2026-11-12)

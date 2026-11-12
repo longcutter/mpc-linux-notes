@@ -218,7 +218,7 @@ LEDs are lit by sending MIDI **back to the Private port** (open `/dev/snd/midiC0
 | LEDs | Message | |
 | --- | --- | --- |
 | Q-Link mode LEDs 1-4 (above the Q-LINK button) | CC 90, 91, 92, 93 on channel 1 | [measured] |
-| Button LEDs | CC on channel 1 whose number **equals the button's note number** (table above) | Confirmed for PROGRAM EDIT 2, SAMPLE EDIT 6, ERASE 9, TC 10, NOTE REPEAT 11, BANK A-D 35-38, FULL LEVEL 39, 16 LEVELS 40, STEP SEQ 41, TAP TEMPO 53, UNDO 67, REC 73, OVER DUB 80, PLAY 82 [measured] |
+| Button LEDs | CC on channel 1 whose number **equals the button's note number** (table above) | Confirmed for PROGRAM EDIT 2, SAMPLE EDIT 6, ERASE 9, NOTE REPEAT 11, BANK A-D 35-38, FULL LEVEL 39, 16 LEVELS 40, STEP SEQ 41, TAP TEMPO 53, UNDO 67, REC 73, OVER DUB 80, PLAY 82 [measured]. Possible exception: TC (button note 12) was seen lighting at CC 10 [unverified, to recheck] |
 | Button LED values, one-colour buttons (PLAY green, REC red, OVER DUB red) | 0 = off, 1 = dim, 2-127 = bright (2 looks the same as 3 and 127) | [measured] |
 | Button LED values, two-colour buttons (ERASE, SAMPLE EDIT, PROGRAM EDIT, NOTE REPEAT, TC, BANK A-D, FULL LEVEL, 16 LEVELS, STEP SEQ) | 0 = off, 1 = dim white, 2 = dim red, 3 = bright white, 4 = bright red, 5-127 = medium white | [measured] |
 | Pad RGB LEDs | SysEx **on the Public port** (`hw:0,0,0`): `F0 47 7F <product ID> 65 00 04 <pad> <R> <G> <B> F7`, R/G/B 0-127. On the One+: `F0 47 7F 56 65 00 04 ...`. Pad 0 = pad 1 (bottom left), counting left to right then up: pad index = MPC pad number - 1. Low values (single digits) still show in daylight | [measured] |

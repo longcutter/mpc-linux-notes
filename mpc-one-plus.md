@@ -3,7 +3,7 @@
 Unofficial notes on how the Akai MPC One+ works inside: the Linux system, the MPC app, audio, the controller's MIDI, the display, storage and USB. Everything here was measured on a real unit or read from inMusic's own open-source release, and each fact says which.
 
 - **Tested unit:** MPC One+, MPC firmware 2.14, with TheKikGen's SSH-enabled image (see [Getting a shell](#getting-a-shell))
-- **Last updated:** 2026-11-12 (see [Changelog](#changelog))
+- **Last updated:** 2026-11-16 (see [Changelog](#changelog))
 - **Not affiliated with Akai Professional or inMusic.** MPC, MPC One+ and Akai Professional are their trademarks. Opening a shell on your MPC, stopping its app or changing its system is at your own risk and may void your warranty.
 
 ## How to read this
@@ -70,6 +70,7 @@ All of Parts 2-3 assume SSH access. These notes were made with **TheKikGen's SSH
 | Kernel (2.14) | `5.15.118-inmusic-2023-06-21-p2-rt64`, SMP PREEMPT_RT, armv7l | [measured] |
 | Build system (2.14) | Buildroot 2021.02.12 | [measured] |
 | C library (2.14) | glibc 2.32 | [measured] |
+| Init (2.14) | systemd 247; default target `multi-user.target` | [measured] |
 | Userland | busybox; no gcc, python or ldd; no `pkill` | [measured] |
 | Kernel config | `/proc/config.gz` is present: `zcat /proc/config.gz \| grep ...` answers kernel-option questions | [measured] |
 | Product code | `ACVA2` (the One+; the original One is `ACVA`). Programs can read it from `/sys/firmware/devicetree/base/inmusic,product-code`; the `compatible` string is `inmusic,acva2` | [source, reported] |
@@ -83,16 +84,20 @@ All of Parts 2-3 assume SSH access. These notes were made with **TheKikGen's SSH
 | --- | --- | --- | --- | --- |
 | `/` | mmcblk0p6 | ext4, **read-only** | 99% full (a few MB free). Never install anything here | [measured] |
 | `/media/az01-internal` | mmcblk0p8 | ext4, read-write | 9.8 GB, about 7 GB free on the tested unit. Holds the `/etc` and `/var` overlay upper layers and `system/acvs-content.img`, an ext4 image loop-mounted (loop0) and overlaid on the factory content partition (mmcblk0p7) | [measured] |
+| `/etc`, `/var` | overlay | overlayfs, read-write | Lower layer: the read-only system's own `/etc` / `/var`. Upper layers: `/media/az01-internal/system/etc/overlay` and `system/var/overlay` (work dirs `system/etc/.work`, `system/var/.work`). So `/etc` is writable even though `/` isn't, and a change there lands on the internal drive | [measured] |
+| `/media/acvs-content` | overlay | overlayfs | The factory content: lower `/media/acvs-content-lower`, upper `/media/az01-internal/system/acvs-content/overlay` | [measured] |
 | `/media/MPC SDC` | mmcblk1p1 | exFAT | The SD card. exFAT has no symlinks or Unix permissions | [measured] |
 | `/tmp` | RAM | | Cleared at reboot | [measured] |
 
 The internal drive is the place for your own files: use a subfolder of your own and back up first if you ever plan to clear factory content.
 
+Because `/etc` is an overlay with its upper layer on the internal drive, a systemd unit or drop-in you add under `/etc/systemd/system` should survive a reboot. [unverified] A firmware update may rebuild those overlays; recheck after updating. [unverified]
+
 ### Services
 
 | Service / process | What it does | |
 | --- | --- | --- |
-| `inmusic-mpc.service` | Runs `/usr/bin/az01-launch-MPC` (the MPC app) with `Restart=always`. `systemctl stop inmusic-mpc` stops it cleanly; `systemctl start inmusic-mpc` brings it back | [measured] |
+| `inmusic-mpc.service` | Runs `/usr/bin/az01-launch-MPC` (the MPC app) with `Restart=always`. `systemctl stop inmusic-mpc` stops it cleanly; `systemctl start inmusic-mpc` brings it back. The unit file is `/usr/lib/systemd/system/inmusic-mpc.service`: enabled, `WantedBy=multi-user.target`, `Wants=az01-script-runner.service`, ordered `After=` `az01-network-midi`, `az01-script-runner`, `az01-usbsata-fixer`, `touch-fw-update` and `xmos-update` services (2.14) | [measured] |
 | `az01-script-runner` | Akai's autorun mechanism | [measured] |
 | `DeviceControlServer.bin` | Creates the virtual MIDI ports | [measured] |
 | `crashpad_handler` | Uploads MPC app crash reports (Sentry) | [measured] |
@@ -308,6 +313,8 @@ Three cores are essentially idle while a single-threaded audio program runs.
 
 - **Stop the MPC app before using the screen, controls or audio:** `systemctl stop inmusic-mpc`, and `systemctl start inmusic-mpc` when you're done. While it runs it is DRM master (anything you draw doesn't show), and it holds the codec and the controller port
 - **Never write to `/`.** It's read-only and full anyway. Put your files in a folder of your own on `/media/az01-internal`
+- **Replacing a program while it runs:** Linux won't let you write over a running executable ("Text file busy"). Copy the new build under another name (say `myprog.new`) and `mv` it over the old one, which is allowed, or stop the program first
+- **Changing what starts at boot:** prefer a drop-in (`/etc/systemd/system/<unit>.d/*.conf`) or a unit of your own in `/etc/systemd/system` over touching the system's files; `/etc` is writable through its overlay (see [Storage](#storage)). Keep a way back: SSH still works if the MPC app doesn't start, but test with a fallback to the MPC app before relying on it
 - **busybox, not a full userland:** there's no `pkill` (use `kill $(pidof <name>)`), no compiler, no python, no `ldd`. Check a tool exists before a script relies on it
 - **A crash can look like a freeze.** If your program segfaults while drawing, the last frame stays on screen and the controls stop answering; the terminal may not print anything. Debug crashes on a host (QEMU user mode + gdb works well) rather than on the device
 - **Copying files from a Mac:** `tar` and `cp` leave `._name` AppleDouble files on exFAT; set `COPYFILE_DISABLE=1` before `tar`. Convert audio to 16-bit 44.1 kHz WAV first (`afconvert -f WAVE -d LEI16@44100 in.aif out.wav`). Check the file size after copying: a mistyped source path makes an empty file
@@ -356,6 +363,7 @@ Three cores are essentially idle while a single-threaded audio program runs.
 
 Help welcome on any of these, from One+ owners or other models.
 
+- Who mounts the SD card (`/media/MPC SDC`) and who acts on the power button (`KEY_POWER`): the system or the MPC app? This decides whether another program can replace the MPC app at boot and still see the card and power off
 - The identity reply's product ID on the One+ (expected 0x56; the reply arrives, 35 bytes on the Public port, but its bytes are not yet recorded here)
 - CV/Gate: transport and message format, voltage range, resolution, whether outputs hold when the app exits
 - Whether inMusic's 5.15 kernel backported "Playback Pitch" (mainline 5.15 has only "Capture Pitch"); link speed once bound; how macOS and Windows enumerate a gadget
@@ -372,6 +380,8 @@ Help welcome on any of these, from One+ owners or other models.
 - **Linux kernel** source ([torvalds/linux](https://github.com/torvalds/linux), [gregkh/linux](https://github.com/gregkh/linux) for 5.15.118): which versions have the UAC2 Pitch controls
 
 ## Changelog
+
+- **2026-11-16:** systemd 247 and the default target; `/etc`, `/var` and the factory content are overlays with their upper layers on the internal drive (so `/etc` is writable); the MPC app's full unit (`WantedBy`, `Wants`, `After`); tips on replacing a running binary and on changing what starts at boot; open question on SD card mounting and the power button without the MPC app
 
 - **2026-11-12 (Q-Link LEDs):** Q-Link mode LED values: 0 off, 1 dim, 2-127 bright
 - **2026-11-12 (more buttons):** MAIN, BROWSE, MENU, SAMPLER, TRACK MUTE, TRACK MIX, NEXT SEQ, COPY and SHIFT confirmed as two-colour LEDs on their note numbers; the MPC app's lights stay on after it stops

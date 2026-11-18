@@ -86,19 +86,19 @@ All of Parts 2-3 assume SSH access. These notes were made with **TheKikGen's SSH
 | `/media/az01-internal` | mmcblk0p8 | ext4, read-write | 9.8 GB, about 7 GB free on the tested unit. Holds the `/etc` and `/var` overlay upper layers and `system/acvs-content.img`, an ext4 image loop-mounted (loop0) and overlaid on the factory content partition (mmcblk0p7) | [measured] |
 | `/etc`, `/var` | overlay | overlayfs, read-write | Lower layer: the read-only system's own `/etc` / `/var`. Upper layers: `/media/az01-internal/system/etc/overlay` and `system/var/overlay` (work dirs `system/etc/.work`, `system/var/.work`). So `/etc` is writable even though `/` isn't, and a change there lands on the internal drive | [measured] |
 | `/media/acvs-content` | overlay | overlayfs | The factory content: lower `/media/acvs-content-lower`, upper `/media/az01-internal/system/acvs-content/overlay` | [measured] |
-| `/media/MPC SDC` | mmcblk1p1 | exFAT | The SD card. exFAT has no symlinks or Unix permissions | [measured] |
+| `/media/MPC SDC` | mmcblk1p1 | exFAT | The SD card. exFAT has no symlinks or Unix permissions. Mounted by the MPC app after it starts, not by a systemd unit (systemd shows `media-MPC\x20SDC.mount` only as a mount it found); it stays mounted when the app is stopped | [measured] |
 | `/tmp` | RAM | | Cleared at reboot | [measured] |
 
 The internal drive is the place for your own files: use a subfolder of your own and back up first if you ever plan to clear factory content.
 
-Because `/etc` is an overlay with its upper layer on the internal drive, a systemd unit or drop-in you add under `/etc/systemd/system` should survive a reboot. [unverified] A firmware update may rebuild those overlays; recheck after updating. [unverified]
+Files you add under `/etc` survive a reboot, but **systemd doesn't see units or drop-ins added in `/etc/systemd/system` at boot**: `etc.mount` puts the overlay over `/etc` only after systemd has read its unit files, so a drop-in for an early unit such as `inmusic-mpc.service` is ignored (`systemctl show -p DropInPaths` stays empty) until the next `systemctl daemon-reload`. A unit systemd first loads *after* the overlay is up does read them: for example the mount unit created when the MPC app mounts the SD card. [measured] A firmware update may rebuild those overlays; recheck after updating. [unverified]
 
 ### Services
 
 | Service / process | What it does | |
 | --- | --- | --- |
 | `inmusic-mpc.service` | Runs `/usr/bin/az01-launch-MPC` (the MPC app) with `Restart=always`. `systemctl stop inmusic-mpc` stops it cleanly; `systemctl start inmusic-mpc` brings it back. The unit file is `/usr/lib/systemd/system/inmusic-mpc.service`: enabled, `WantedBy=multi-user.target`, `Wants=az01-script-runner.service`, ordered `After=` `az01-network-midi`, `az01-script-runner`, `az01-usbsata-fixer`, `touch-fw-update` and `xmos-update` services (2.14) | [measured] |
-| `az01-script-runner` | Akai's autorun mechanism | [measured] |
+| `az01-script-runner` | A small compiled program (`/usr/bin/az01-script-runner`) that listens on a socket and runs each command it receives with `system()`, as root. The MPC app uses it; it doesn't run anything on its own at boot | [measured] |
 | `DeviceControlServer.bin` | Creates the virtual MIDI ports | [measured] |
 | `crashpad_handler` | Uploads MPC app crash reports (Sentry) | [measured] |
 | Telemetry in the MPC app | Usage analytics (PostHog) besides Sentry crash reports; the "Collect Usage Statistics" preference does not cover crash reporting (analysis of firmware 3.9.1) | [reported] |
@@ -251,7 +251,7 @@ Who holds the display and what it shows: `/sys/kernel/debug/dri/0/clients` and `
 | Device | What | |
 | --- | --- | --- |
 | `/dev/input/event0` | ILI2117 touchscreen, multi-touch protocol; axes 0..2048 on both X and Y. Panel axes match the framebuffer (no swap or invert needed on the tested unit) | [measured] |
-| `/dev/input/event1` | gpio-keys: the power button (`KEY_POWER`) | [measured, source] |
+| `/dev/input/event1` | gpio-keys: the power button (`KEY_POWER`). The MPC app's launcher runs it under `systemd-inhibit --what=handle-power-key`, so the app gets the button; there's no `/etc/systemd/logind.conf`, so without such an inhibitor systemd-logind's default applies (power off). A program that replaces the app can take the button the same way and read `KEY_POWER` from this device itself | [measured] |
 
 Touch to landscape screen: scale raw values to panel pixels (x * 800 / 2048, y * 1280 / 2048), then undo the 270-degree rotation above.
 
@@ -314,7 +314,8 @@ Three cores are essentially idle while a single-threaded audio program runs.
 - **Stop the MPC app before using the screen, controls or audio:** `systemctl stop inmusic-mpc`, and `systemctl start inmusic-mpc` when you're done. While it runs it is DRM master (anything you draw doesn't show), and it holds the codec and the controller port
 - **Never write to `/`.** It's read-only and full anyway. Put your files in a folder of your own on `/media/az01-internal`
 - **Replacing a program while it runs:** Linux won't let you write over a running executable ("Text file busy"). Copy the new build under another name (say `myprog.new`) and `mv` it over the old one, which is allowed, or stop the program first
-- **Changing what starts at boot:** prefer a drop-in (`/etc/systemd/system/<unit>.d/*.conf`) or a unit of your own in `/etc/systemd/system` over touching the system's files; `/etc` is writable through its overlay (see [Storage](#storage)). Keep a way back: SSH still works if the MPC app doesn't start, but test with a fallback to the MPC app before relying on it
+- **Changing what starts at boot:** units and drop-ins in `/etc/systemd/system` are written to the internal drive but **not seen at boot** (see [Storage](#storage)), so a drop-in on `inmusic-mpc.service` does nothing after a reboot. What worked on the tested unit: a drop-in on the SD card's mount unit (`/etc/systemd/system/media-MPC\x20SDC.mount.d/*.conf` with `Wants=your.service`), which systemd reads when the MPC app mounts the card a few seconds after boot; your service then stops the app (`systemctl stop inmusic-mpc`) and takes over. Don't skip the app with `ExecCondition=`: its `Restart=always` brought it back and the two fought over the audio device. Keep a way back (a crash or failure counter that starts the MPC app again); SSH keeps working either way
+- **The TKGL bootstrap** (the SSH image's patched `/usr/bin/az01-launch-MPC`) runs `tkgl_bootstrap_[ProjectData]/scripts/tkgl_bootstrap` at every app start, but only from USB drives; the SD card is not a USB device. Its line 33 prints a harmless `9e8403a: not found`
 - **busybox, not a full userland:** there's no `pkill` (use `kill $(pidof <name>)`), no compiler, no python, no `ldd`. Check a tool exists before a script relies on it
 - **A crash can look like a freeze.** If your program segfaults while drawing, the last frame stays on screen and the controls stop answering; the terminal may not print anything. Debug crashes on a host (QEMU user mode + gdb works well) rather than on the device
 - **Copying files from a Mac:** `tar` and `cp` leave `._name` AppleDouble files on exFAT; set `COPYFILE_DISABLE=1` before `tar`. Convert audio to 16-bit 44.1 kHz WAV first (`afconvert -f WAVE -d LEI16@44100 in.aif out.wav`). Check the file size after copying: a mistyped source path makes an empty file
@@ -363,7 +364,6 @@ Three cores are essentially idle while a single-threaded audio program runs.
 
 Help welcome on any of these, from One+ owners or other models.
 
-- Who mounts the SD card (`/media/MPC SDC`) and who acts on the power button (`KEY_POWER`): the system or the MPC app? This decides whether another program can replace the MPC app at boot and still see the card and power off
 - The identity reply's product ID on the One+ (expected 0x56; the reply arrives, 35 bytes on the Public port, but its bytes are not yet recorded here)
 - CV/Gate: transport and message format, voltage range, resolution, whether outputs hold when the app exits
 - Whether inMusic's 5.15 kernel backported "Playback Pitch" (mainline 5.15 has only "Capture Pitch"); link speed once bound; how macOS and Windows enumerate a gadget
@@ -380,6 +380,8 @@ Help welcome on any of these, from One+ owners or other models.
 - **Linux kernel** source ([torvalds/linux](https://github.com/torvalds/linux), [gregkh/linux](https://github.com/gregkh/linux) for 5.15.118): which versions have the UAC2 Pitch controls
 
 ## Changelog
+
+- **2026-11-17:** Measured while making another program start at power-on: units added in `/etc/systemd/system` aren't seen at boot (`/etc` overlay mounts after systemd reads units); the SD card is mounted by the MPC app; a drop-in on the card's mount unit is a working hook; `ExecCondition=` on the app's service fights `Restart=always`. `az01-script-runner` runs commands received on a socket; the power button and `systemd-inhibit`; the TKGL bootstrap's USB-only scripts. Removed the answered open question
 
 - **2026-11-16:** systemd 247 and the default target; `/etc`, `/var` and the factory content are overlays with their upper layers on the internal drive (so `/etc` is writable); the MPC app's full unit (`WantedBy`, `Wants`, `After`); tips on replacing a running binary and on changing what starts at boot; open question on SD card mounting and the power button without the MPC app
 

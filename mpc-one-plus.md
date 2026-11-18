@@ -3,7 +3,7 @@
 Unofficial notes on how the Akai MPC One+ works inside: the Linux system, the MPC app, audio, the controller's MIDI, the display, storage and USB. Everything here was measured on a real unit or read from inMusic's own open-source release, and each fact says which.
 
 - **Tested unit:** MPC One+, MPC firmware 2.14, with TheKikGen's SSH-enabled image (see [Getting a shell](#getting-a-shell))
-- **Last updated:** 2026-11-16 (see [Changelog](#changelog))
+- **Last updated:** 2026-11-17 (see [Changelog](#changelog))
 - **Not affiliated with Akai Professional or inMusic.** MPC, MPC One+ and Akai Professional are their trademarks. Opening a shell on your MPC, stopping its app or changing its system is at your own risk and may void your warranty.
 
 ## How to read this
@@ -153,11 +153,13 @@ ALSA card 0, USB-Audio "MPC One +" (USB `09e8:0056`), on an internal USB host co
 
 | Raw MIDI port | Name | Use |
 | --- | --- | --- |
-| `hw:0,0,0` (`/dev/snd/midiC0D0`, subdevice 0) | MPC Studio Live Public | Sent nothing during capture |
+| `hw:0,0,0` (`/dev/snd/midiC0D0`, subdevice 0) | MPC Studio Live Public | Sent nothing during capture (with the MPC app running); SysEx in and out |
 | `hw:0,0,1` (`/dev/snd/midiC0D0`, subdevice 1) | MPC Studio Live **Private** | **All pads, knobs and buttons arrive here; LEDs are written here** |
 | `hw:0,0,2` (`/dev/snd/midiC0D0`, subdevice 2) | MPC Studio Live MIDI Port | The DIN MIDI jacks |
 
 The port names say "MPC Studio Live" on the One+, the same as the original MPC One; the Live, Live II, X and Key 61 use "MPC Public" / "MPC Private" / "MPC MIDI Port A-D". [measured, reported] The Public port carries SysEx in both directions (pad colours, identity): pad colours sent there light the pads, and the identity request sent there gets a 35-byte reply on the same port [measured]; buttons, pads and button LEDs use Private. [measured]
+
+**Public and Private mode.** At power-on the controller is in Public mode: in a test with the MPC app stopped a few seconds into its start, only PLAY reached the Private port and the pads, Q-Links, encoder and other buttons sent nothing there. The MPC app switches it to Private mode at launch with `F0 47 7F 56 62 00 01 65 F7` on the Public port (`62` = port mode, `65` = Private, `56` = the One+'s product ID); sending that message by hand, or from your own program, gives the full Private map above. Sending it when the controller is already in Private mode is harmless. This only matters if the MPC app never finishes starting (for example a program that replaces it at boot); after the app has run, the mode stays Private until power-off. [measured] The same message with product ID 0x3B appears in TheKikGen's dump of the MPC Live's startup; the MPC Studio Black documents `61` for its Private mode and `02` for Public. [reported]
 
 **Identity and product ID.** The controller answers a universal identity request (`F0 7E 00 06 01 F7`) with Akai's ID 0x47, a product ID and its serial number. Product IDs used in Akai's SysEx: 0x3A MPC X, 0x3B Live, 0x40 Force, 0x46 One, 0x47 Live II, 0x4B Key 61, 0x52 XL, **0x56 One+ (ACVA2)**. [reported]
 
@@ -342,6 +344,7 @@ Three cores are essentially idle while a single-threaded audio program runs.
 ### Controller MIDI
 
 - **Select the Private subdevice before opening the port.** Without alsa-lib: open `/dev/snd/controlC0`, `ioctl(SNDRV_CTL_IOCTL_RAWMIDI_PREFER_SUBDEVICE, &(int){1})`, then open `/dev/snd/midiC0D0` read-write on the same thread. That is how alsa-lib picks a subdevice
+- **Switch the controller to Private mode yourself** if your program may start before the MPC app has ever run (power-on): send `F0 47 7F 56 62 00 01 65 F7` on the Public port (subdevice 0) before reading input. From a shell: `printf '\360\107\177\126\142\000\001\145\367' > /dev/snd/midiC0D0` (the first free subdevice is the Public one)
 - **Use a running-status MIDI parser** and tell pads (channel 10) from buttons (channel 1) by channel, since their note numbers overlap
 - **No ALSA sequencer** on this kernel, so programs that expect one (SuperCollider's `MIDIIn`, JACK's seq bridge) need raw MIDI, OSC or a relay instead
 - When handing the controller from one program to another, a relay that keeps the port open and forwards bytes over a pipe made hand-overs instant and let the parent watch for an escape combo even if the child hung
@@ -374,12 +377,15 @@ Help welcome on any of these, from One+ owners or other models.
 ## Credits and related work
 
 - **TheKikGen**, [MPC-LiveXplore](https://github.com/TheKikGen/MPC-LiveXplore) and its [wiki](https://github.com/TheKikGen/MPC-LiveXplore/wiki): the SSH image these notes depend on; the controller's port layout, identity request, pad colour SysEx and DFU mode ([MPC internal controller, MIDI aspects](https://github.com/TheKikGen/MPC-LiveXplore/wiki/MPC-internal-controller---Midi-aspects), which credits Lenore Byron for decoding SysEx commands); [inMusic device IDs](https://github.com/TheKikGen/MPC-LiveXplore/wiki/Akai--InMusic-device-Ids); [MPC 3 first analysis](https://github.com/TheKikGen/MPC-LiveXplore/wiki/MPC-3-first-analysis); the firmware 3.9.1 privacy and memory-limit analyses on the same wiki
-- **TheKikGen**, [MPCLiveXplore-libs](https://github.com/TheKikGen/MPCLiveXplore-libs) (CC0): the product code and SysEx ID table including the One+ (ACVA2, 0x56), the pad colour message and pad numbering, button LED values
+- **TheKikGen**, [MPCLiveXplore-libs](https://github.com/TheKikGen/MPCLiveXplore-libs) (CC0): the product code and SysEx ID table including the One+ (ACVA2, 0x56), the pad colour message and pad numbering, button LED values, the MPC app's startup SysEx (port mode)
+- **bcrowe306**, [MPC-Studio-Black](https://github.com/bcrowe306/MPC-Studio-Black): the port-mode SysEx (Public / Private) on a related controller
 - **bcrowe306**, [MPC-One-Control-Mode-MIDI-Protocol](https://github.com/bcrowe306/MPC-One-Control-Mode-MIDI-Protocol): the MIDI map the MPC One uses in *controller mode* toward a computer, which is different from the internal map above
 - **inMusic**, [az0x-open-source](https://github.com/inmusic-software/az0x-open-source): kernel, device trees and drivers
 - **Linux kernel** source ([torvalds/linux](https://github.com/torvalds/linux), [gregkh/linux](https://github.com/gregkh/linux) for 5.15.118): which versions have the UAC2 Pitch controls
 
 ## Changelog
+
+- **2026-11-17 (later):** Public and Private controller modes: the power-on default is Public (only PLAY on the Private port), the MPC app sends `F0 47 7F 56 62 00 01 65 F7` on the Public port to switch to Private; measured on the One+, with a tip for programs that start at boot
 
 - **2026-11-17:** Measured while making another program start at power-on: units added in `/etc/systemd/system` aren't seen at boot (`/etc` overlay mounts after systemd reads units); the SD card is mounted by the MPC app; a drop-in on the card's mount unit is a working hook; `ExecCondition=` on the app's service fights `Restart=always`. `az01-script-runner` runs commands received on a socket; the power button and `systemd-inhibit`; the TKGL bootstrap's USB-only scripts. Removed the answered open question
 
